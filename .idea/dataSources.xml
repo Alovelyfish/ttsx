@@ -7,5 +7,13 @@
       <jdbc-driver>com.mysql.cj.jdbc.Driver</jdbc-driver>
       <jdbc-url>jdbc:mysql://localhost:3306/dailyfresh1</jdbc-url>
     </data-source>
+    <data-source source="LOCAL" name="Django default" uuid="22cfc91c-d37c-47ad-bab5-df3c9c55e9a7">
+      <driver-ref>mysql.8</driver-ref>
+      <synchronize>true</synchronize>
+      <imported>true</imported>
+      <remarks>$PROJECT_DIR$/dailyfresh/settings.py</remarks>
+      <jdbc-driver>com.mysql.cj.jdbc.Driver</jdbc-driver>
+      <jdbc-url>jdbc:mysql://127.0.0.1:3306/dailyfresh1</jdbc-url>
+    </data-source>
   </component>
 </project>
