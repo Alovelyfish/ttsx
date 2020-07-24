@@ -1,16 +1,19 @@
 import re
 
 from django.conf import settings
-from django.contrib.auth import authenticate, login
+from django.contrib.auth import authenticate, login, logout
+from django.contrib.auth.decorators import login_required
+from django.contrib.auth.mixins import LoginRequiredMixin
 from django.core.mail import send_mail
 from django.http import HttpResponse
 from django.shortcuts import render, redirect
 from django.urls import reverse
+from django.utils.decorators import method_decorator
 from django.views.generic import View
 from itsdangerous import SignatureExpired
 from itsdangerous import TimedJSONWebSignatureSerializer as Serializer
 
-from apps.user.models import User
+from apps.user.models import User, Address
 
 # from celery_tasks.tasks import send_register_active_mail
 
@@ -166,7 +169,9 @@ class LoginView(View):
             if user.is_active:
                 # 记录状态
                 login(request=request, user=user)
-                response = redirect(reverse('goods:index'))
+                next_url = request.GET.get('next', reverse('goods:index'))
+                response = redirect(next_url)
+
                 remember = request.POST.get('remember')
                 if remember == 'on':
                     response.set_cookie('username', user_name, max_age=7 * 24)
@@ -177,3 +182,79 @@ class LoginView(View):
                 return render(request, 'login.html', {'errmsg': '用户未激活'})
         else:
             return render(request, 'login.html', {'errmsg': '用户名或密码错误'})
+
+
+class LogoutView(View):
+    def get(self, request):
+        logout(request=request)
+        return redirect(reverse('user:login'))
+
+
+# /user
+# /user
+
+class UserInfoView(View):
+    @method_decorator(login_required(login_url='/user/login'))
+    def get(self, request):
+        # request.user.is_authenticated
+        user = request.user
+        try:
+            address1 = Address.objects.get(user=user)
+        # TODO 查找关于抛出异常类型问题
+        except Address.DoesNotExist:
+            address1 = None
+        return render(request=request, template_name='user_center_info.html',
+                      context={'page': 'user', 'address1': address1})
+
+
+# /user/
+
+class UserOrderView(LoginRequiredMixin, View):
+    login_url = '/user/order'
+
+    def get(self, request):
+        return render(request=request, template_name='user_center_order.html', context={'page': 'order'})
+
+
+# /user/
+
+class UserAddressView(LoginRequiredMixin, View):
+    login_url = '/user/address'
+
+    def get(self, request):
+        user = request.user
+        try:
+            address = Address.objects.get(user=user, is_default=True)
+        except Address.DoesNotExist:
+            address = None
+
+        return render(request=request, template_name='user_center_site.html',
+                      context={'page': 'address', 'address': address})
+
+    def post(self, request):
+        # 获取前台数据
+        receiver = request.POST.get("receiver")
+        addr = request.POST.get("addr")
+        zip_code = request.POST.get("zip_code")
+        tel = request.POST.get("tel")
+        # 前台数据校验
+        if not all([receiver, addr, zip_code, tel]):
+            return render(request, 'user_center_site.html', {'errmsg': '地址信息存在未填数据，请填写完整数据'})
+        # 写入数据库
+        if not re.match(r'^1[3|4|5|7|8][0-9]{9}$', tel):
+            return render(request, 'user_center_site.html', {'errmsg': '手机格式非法'})
+        # 校验地址是否存在默认
+        user = request.user
+        try:
+            address = Address.objects.get(user=user, is_default=True)
+        except Address.DoesNotExist:
+            address = None
+        if address is not None:
+            is_default = False
+        else:
+            is_default = True
+
+        Address.objects.create(user=user, receiver=receiver, addr=addr, zip_code=zip_code,
+                               phone=tel, is_default=is_default)
+
+        return redirect(reverse('user:address'))
